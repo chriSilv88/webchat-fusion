@@ -1,4 +1,3 @@
-// File: README.md (original rewrite)
 
 # WebChat Fusion: AI Assistant Powered by FastAPI and Next.js
 
