@@ -1,30 +1,29 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  rewrites: async () => {
+const customConfig = {
+  async rewrites() {
     return [
       {
-        source: "/api/:path*",
+        source: '/backend/:resource*',
         destination:
-          process.env.NODE_ENV === "development"
-            ? "http://127.0.0.1:8000/api/:path*"
-            : "/api/",
+          process.env.NODE_ENV === 'development'
+            ? 'http://localhost:8000/backend/:resource*'
+            : '/api/:resource*',
       },
       {
-        source: "/docs",
+        source: '/documentazione',
         destination:
-          process.env.NODE_ENV === "development"
-            ? "http://127.0.0.1:8000/docs"
-            : "/api/docs",
+          process.env.NODE_ENV === 'development'
+            ? 'http://localhost:8000/docs'
+            : '/api/docs',
       },
       {
-        source: "/openapi.json",
+        source: '/schema-api',
         destination:
-          process.env.NODE_ENV === "development"
-            ? "http://127.0.0.1:8000/openapi.json"
-            : "/api/openapi.json",
+          process.env.NODE_ENV === 'development'
+            ? 'http://localhost:8000/openapi.json'
+            : '/api/openapi.json',
       },
     ];
   },
 };
 
-module.exports = nextConfig;
+module.exports = customConfig;

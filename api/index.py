@@ -1,131 +1,156 @@
-from fastapi import FastAPI, HTTPException
-from typing import List, Dict, Any
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain_community.document_loaders import WebBaseLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.chains import create_history_aware_retriever, create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from pydantic import BaseModel
+"use client";
 
-from dotenv import load_dotenv
-import logging
+import React, { useState } from "react";
+import axios from "axios";
+import * as z from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+import { Heading } from "@/components/heading";
+import { Form, FormControl, FormField, FormItem } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Loader } from "@/components/loader";
 
-app = FastAPI()
-load_dotenv()
+interface ChatTurn {
+  role: "user" | "assistant";
+  message: string;
+}
 
-# Global variables for chat history and vector store
-chat_history = [AIMessage(content="Hello, I am a bot. How can I help you?")]
-vector_store = None
+const AssistantInterface = () => {
+  const [loading, setLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [chatLog, setChatLog] = useState<ChatTurn[]>([]);
 
+  const urlSchema = z.object({
+    url: z.string().url("Please provide a valid URL."),
+  });
 
-class UrlModel(BaseModel):
-    url: str
+  const querySchema = z.object({
+    message: z.string().min(1, "Message cannot be empty."),
+  });
 
+  const urlForm = useForm({ resolver: zodResolver(urlSchema) });
+  const messageForm = useForm({ resolver: zodResolver(querySchema) });
 
-@app.post("/api/scrape")
-async def get_vectorstore_from_url(item: UrlModel):
-    url = item.url
-    global vector_store
-    logger.info(f"Received request to scrape URL: {url}")
+  const handleUrlSubmit = async (data: z.infer<typeof urlSchema>) => {
+    try {
+      const res = await fetch("/api/scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: data.url }),
+      });
+      const result = await res.json();
+      setStatusMessage(result.message || "Site processed successfully.");
+    } catch (err) {
+      console.error("Failed to scrape URL:", err);
+      setStatusMessage("An error occurred while processing the site.");
+    }
+  };
 
-    try:
-        # Log the received URL for debugging
-        logger.info(f"Received URL: {url}")
+  const handleMessageSubmit = async (data: z.infer<typeof querySchema>) => {
+    setLoading(true);
+    try {
+      const response = await axios.post("/api/chat", { message: data.message });
+      setChatLog((prev) => [
+        ...prev,
+        { role: "user", message: data.message },
+        { role: "assistant", message: response.data },
+      ]);
+      messageForm.reset();
+    } catch (err) {
+      console.error("Chat submission failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        loader = WebBaseLoader(url)
-        document = loader.load()
-        text_splitter = RecursiveCharacterTextSplitter()
-        document_chunks = text_splitter.split_documents(document)
-        vector_store = Chroma.from_documents(document_chunks, OpenAIEmbeddings())
-        logger.info(f"Vector store initialized")
-        return {"message": "Vector store initialized"}
-    except Exception as e:
-        logger.error(f"Error in get_vectorstore_from_url: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+  return (
+    <div>
+      <Heading
+        title="Custom AI Assistant"
+        description="Provide a webpage to extract context, then chat naturally."
+      />
 
+      {/* Website input section */}
+      <div className="px-4 lg:px-8 mt-4">
+        <Form {...urlForm}>
+          <form
+            onSubmit={urlForm.handleSubmit(handleUrlSubmit)}
+            className="grid grid-cols-12 gap-2 rounded-lg border p-4 px-3 md:px-6 focus-within:shadow-sm"
+          >
+            <FormField
+              name="url"
+              render={({ field }) => (
+                <FormItem className="col-span-12 lg:col-span-10">
+                  <FormControl>
+                    <Input {...field} placeholder="https://your-site.com" />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <Button className="col-span-12 lg:col-span-2 w-full" type="submit">
+              Load Context
+            </Button>
+          </form>
+        </Form>
+        {statusMessage && <p className="mt-4 text-muted-foreground">{statusMessage}</p>}
+      </div>
 
-class ChatRequest(BaseModel):
-    message: str
+      {/* Chat interface */}
+      <div className="px-4 lg:px-8 mt-4">
+        <Form {...messageForm}>
+          <form
+            onSubmit={messageForm.handleSubmit(handleMessageSubmit)}
+            className="grid grid-cols-12 gap-2 rounded-lg border p-4 px-3 md:px-6 focus-within:shadow-sm"
+          >
+            <FormField
+              name="message"
+              render={({ field }) => (
+                <FormItem className="col-span-12 lg:col-span-10">
+                  <FormControl>
+                    <Input {...field} placeholder="Ask me anything..." />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <Button
+              className="col-span-12 lg:col-span-2 w-full bg-green text-white"
+              type="submit"
+            >
+              Ask
+            </Button>
+          </form>
+        </Form>
 
+        <div className="space-y-4 mt-4">
+          {loading && (
+            <div className="p-8 flex items-center justify-center rounded-lg w-full bg-muted">
+              <Loader />
+            </div>
+          )}
 
-@app.post("/api/chat")
-async def chat(request: ChatRequest):
-    global chat_history, vector_store
-    if vector_store is None:
-        raise HTTPException(status_code=404, detail="Vector store not found")
+          <div className="flex flex-col-reverse gap-y-4">
+            {chatLog.map((entry, index) => (
+              <div
+                key={index}
+                className={`p-8 flex items-start gap-x-8 rounded-lg w-full ${
+                  entry.role === "user"
+                    ? "bg-white border border-black/10"
+                    : "bg-muted"
+                }`}
+              >
+                <span className="font-semibold">
+                  {entry.role === "user" ? "User" : "Assistant"}
+                </span>
+                <p className="text-sm">{entry.message}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
-    try:
-        user_message = HumanMessage(content=request.message)
-
-        retriever_chain = get_context_retriever_chain(vector_store)
-        conversation_rag_chain = get_conversational_rag_chain(retriever_chain)
-
-        logger.info(f"User message: {user_message.content}")
-        logger.info(f"Chat history: {chat_history}")
-        response = conversation_rag_chain.invoke(
-            {"chat_history": chat_history, "input": user_message}
-        )
-
-        chat_history.append(user_message)
-
-        ai_message = AIMessage(content=response["answer"])
-        chat_history.append(ai_message)
-
-        return response["answer"]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-def get_context_retriever_chain(vector_store):
-    logger.info("Creating context retriever chain")
-    llm = ChatOpenAI()
-
-    retriever = vector_store.as_retriever()
-
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            MessagesPlaceholder(variable_name="chat_history"),
-            ("user", "{input}"),
-            (
-                "user",
-                "Given the above conversation, generate a search query to look up in order to get information relevant to the conversation",
-            ),
-        ]
-    )
-
-    retriever_chain = create_history_aware_retriever(llm, retriever, prompt)
-
-    return retriever_chain
-
-
-def get_conversational_rag_chain(retriever_chain):
-
-    llm = ChatOpenAI()
-
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                "Answer the user's questions based on the below context:\n\n{context}",
-            ),
-            MessagesPlaceholder(variable_name="chat_history"),
-            ("user", "{input}"),
-        ]
-    )
-
-    stuff_documents_chain = create_stuff_documents_chain(llm, prompt)
-
-    return create_retrieval_chain(retriever_chain, stuff_documents_chain)
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+export default AssistantInterface;

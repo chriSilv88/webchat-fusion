@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 interface HeadingProps {
   title: string;
   description: string;
-  icon?: LucideIcon; // Make icon optional
+  icon?: LucideIcon;
   iconColor?: string;
   bgColor?: string;
 }
@@ -18,7 +18,7 @@ export const Heading = ({
 }: HeadingProps) => {
   return (
     <div className="text-center mb-8">
-      {Icon && ( // Check if Icon is provided
+      {Icon && ( 
         <div className={cn("inline-flex p-2 rounded-md", bgColor)}>
           <Icon className={cn("w-10 h-10", iconColor)} />
         </div>

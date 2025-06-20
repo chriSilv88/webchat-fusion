@@ -10,24 +10,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader } from "@/components/loader";
 
-interface Message {
+interface ChatEntry {
   role: "user" | "bot";
   content: string;
 }
 
-const ConversationPage = () => {
-  const [urlResponse, setUrlResponse] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+const ChatInterface = () => {
+  const [statusMessage, setStatusMessage] = useState("");
+  const [chatLog, setChatLog] = useState<ChatEntry[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const scrapeForm = useForm({
+  const urlForm = useForm({
     resolver: zodResolver(
       z.object({
         url: z.string().url({ message: "Please enter a valid URL." }),
       })
     ),
   });
-  const chatForm = useForm({
+
+  const messageForm = useForm({
     resolver: zodResolver(
       z.object({
         message: z.string().min(1, { message: "Message is required." }),
@@ -35,55 +36,50 @@ const ConversationPage = () => {
     ),
   });
 
-  const onScrapeSubmit = async (data: any) => {
+  const handleUrlSubmit = async (formData: any) => {
     try {
-      console.log("Sending URL:", data.url);
-      const endpoint = `/api/scrape`;
-      const response = await fetch(endpoint, {
+      const res = await fetch("/api/scrape", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ url: data.url }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: formData.url }),
       });
 
-      const json = await response.json();
-      console.log(json);
-      setUrlResponse("URL successfully processed. Start your conversation.");
-    } catch (error) {
-      console.error("Error scraping URL: ", error);
-      setUrlResponse("Failed to process URL.");
+      const data = await res.json();
+      console.log("Scrape response:", data);
+      setStatusMessage("URL processed. You may now start chatting.");
+    } catch (err) {
+      console.error("Scraping failed:", err);
+      setStatusMessage("Could not process the provided URL.");
     }
   };
 
-  const onChatSubmit = async (data: any) => {
-    setIsLoading(true);
+  const handleChatSubmit = async (formData: any) => {
+    setLoading(true);
     try {
-      const response = await axios.post("/api/chat", { message: data.message });
-      setMessages([
-        ...messages,
-        { role: "user", content: data.message },
-        { role: "bot", content: response.data },
+      const res = await axios.post("/api/chat", { message: formData.message });
+      setChatLog([
+        ...chatLog,
+        { role: "user", content: formData.message },
+        { role: "bot", content: res.data },
       ]);
-    } catch (error) {
-      console.error("Error in chat: ", error);
+    } catch (err) {
+      console.error("Chat error:", err);
     }
-    setIsLoading(false);
-    chatForm.reset();
+    setLoading(false);
+    messageForm.reset();
   };
 
   return (
     <div>
       <Heading
-        title="Interactive Chatbot"
-        description="Engage in a conversation. Provide a URL for contextual responses."
+        title="Smart Site Chat"
+        description="Insert a website URL and start chatting with its content."
       />
 
-      {/* URL Scrape Form */}
       <div className="px-4 lg:px-8 mt-4">
-        <Form {...scrapeForm}>
+        <Form {...urlForm}>
           <form
-            onSubmit={scrapeForm.handleSubmit(onScrapeSubmit)}
+            onSubmit={urlForm.handleSubmit(handleUrlSubmit)}
             className="rounded-lg border w-full p-4 px-3 md:px-6 focus-within:shadow-sm grid grid-cols-12 gap-2"
           >
             <FormField
@@ -91,24 +87,23 @@ const ConversationPage = () => {
               render={({ field }) => (
                 <FormItem className="col-span-12 lg:col-span-10">
                   <FormControl className="m-0 p-0">
-                    <Input {...field} placeholder="Enter URL to scrape" />
+                    <Input {...field} placeholder="Paste website URL here" />
                   </FormControl>
                 </FormItem>
               )}
             />
             <Button className="col-span-12 lg:col-span-2 w-full" type="submit">
-              Scrape URL
+              Load Site
             </Button>
           </form>
         </Form>
-        {urlResponse && <p className="mt-4">{urlResponse}</p>}
+        {statusMessage && <p className="mt-4">{statusMessage}</p>}
       </div>
 
-      {/* Chat Interaction Form */}
       <div className="px-4 lg:px-8 mt-4">
-        <Form {...chatForm}>
+        <Form {...messageForm}>
           <form
-            onSubmit={chatForm.handleSubmit(onChatSubmit)}
+            onSubmit={messageForm.handleSubmit(handleChatSubmit)}
             className="rounded-lg border w-full p-4 px-3 md:px-6 focus-within:shadow-sm grid grid-cols-12 gap-2"
           >
             <FormField
@@ -116,7 +111,7 @@ const ConversationPage = () => {
               render={({ field }) => (
                 <FormItem className="col-span-12 lg:col-span-10">
                   <FormControl className="m-0 p-0">
-                    <Input {...field} placeholder="Type your message" />
+                    <Input {...field} placeholder="Ask something..." />
                   </FormControl>
                 </FormItem>
               )}
@@ -125,34 +120,29 @@ const ConversationPage = () => {
               className="col-span-12 lg:col-span-2 w-full bg-green text-white"
               type="submit"
             >
-              Send Message
+              Send
             </Button>
           </form>
         </Form>
+
         <div className="space-y-4 mt-4">
-          {isLoading && (
+          {loading && (
             <div className="p-8 rounded-lg w-full flex items-center justify-center bg-muted">
               <Loader />
             </div>
           )}
-          {
-            messages.length === 0 &&
-              urlResponse === "" &&
-              !isLoading &&
-              null /* This will not render anything */
-          }
           <div className="flex flex-col-reverse gap-y-4">
-            {messages.map((message, index) => (
+            {chatLog.map((entry, idx) => (
               <div
-                key={index}
+                key={idx}
                 className={`p-8 w-full flex items-start gap-x-8 rounded-lg ${
-                  message.role === "user"
+                  entry.role === "user"
                     ? "bg-white border border-black/10"
                     : "bg-muted"
                 }`}
               >
-                {message.role === "user" ? "User" : "Bot"}
-                <p className="text-sm">{message.content}</p>
+                {entry.role === "user" ? "User" : "Assistant"}
+                <p className="text-sm">{entry.content}</p>
               </div>
             ))}
           </div>
@@ -162,4 +152,4 @@ const ConversationPage = () => {
   );
 };
 
-export default ConversationPage;
+export default ChatInterface;
