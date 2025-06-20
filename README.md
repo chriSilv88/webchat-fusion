@@ -3,7 +3,6 @@
 
 WebChat Fusion is a hybrid web application that combines the power of a responsive React frontend (via Next.js) with the flexibility of a Python-based FastAPI backend. It is designed to facilitate intelligent conversations with website content, leveraging LLMs and modern retrieval techniques.
 
-![Interface Preview](images/chatbot.png)
 
 ## Highlights
 
